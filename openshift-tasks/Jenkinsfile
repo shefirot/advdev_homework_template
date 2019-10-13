@@ -1,5 +1,4 @@
 #!groovy
-/*prueba*/
 podTemplate(
   label: "skopeo-pod",
   cloud: "openshift",

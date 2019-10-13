@@ -13,13 +13,47 @@ CLUSTER=$3
 echo "Setting up Jenkins in project ${GUID}-jenkins from Git Repo ${REPO} for Cluster ${CLUSTER}"
 
 # Set up Jenkins with sufficient resources
-# TBD
+#create app with 2G memory and 4G persistent
+oc new-app jenkins-persistent --param ENABLE_OAUTH=true --param MEMORY_LIMIT=2Gi --param VOLUME_CAPACITY=4Gi \
+--param DISABLE_ADMINISTRATIVE_MONITORS=true -n ${GUID}-jenkins
+#Ensure min and max resources for the app
+oc set resources dc jenkins --limits=memory=2Gi,cpu=2 --requests=memory=1Gi,cpu=1 -n ${GUID}-jenkins
 
 # Create custom agent container image with skopeo
-# TBD
+oc new-build -D $'FROM docker.io/openshift/jenkins-agent-maven-35-centos7:v3.11\n
+USER root\nRUN yum -y install skopeo && yum clean all\n
+USER 1001' --name=jenkins-agent-appdev --allow-missing-imagestream-tags=true -n ${GUID}-jenkins
+
 
 # Create pipeline build config pointing to the ${REPO} with contextDir `openshift-tasks`
-# TBD
+echo "\
+---
+apiVersion: v1
+items:
+- kind: "BuildConfig"
+  apiVersion: "v1"
+  metadata:
+    name: "tasks-pipeline"
+  spec:
+    source:
+      contextDir: "openshift-tasks"
+      type: "Git"
+      git:
+        uri: ${REPO}
+    strategy:
+      type: "JenkinsPipeline"
+      jenkinsPipelineStrategy:
+        jenkinsfilePath: Jenkinsfile
+        env:
+        - name: "GUID"
+          value: ${GUID}
+        - name: "REPO"
+          value: ${REPO}
+        - name: "CLUSTER"
+          value: ${CLUSTER}
+kind: List
+metadata: []" | oc create -f - -n ${GUID}-jenkins
+
 
 # Make sure that Jenkins is fully up and running before proceeding!
 while : ; do
